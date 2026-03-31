@@ -5,10 +5,15 @@ const AWS = require("aws-sdk");
 const cors = require("cors");
 
 const app = express();
-app.use(cors());
 
+// ✅ Middlewares
+app.use(cors());
+app.use(express.json());
+
+// ✅ Multer setup (memory storage)
 const upload = multer({ storage: multer.memoryStorage() });
 
+// ✅ AWS config
 AWS.config.update({
   accessKeyId: process.env.AWS_ACCESS_KEY,
   secretAccessKey: process.env.AWS_SECRET_KEY,
@@ -17,6 +22,9 @@ AWS.config.update({
 
 const s3 = new AWS.S3();
 
+// =======================================
+// 🚀 UPLOAD ROUTE (FIXED)
+// =======================================
 app.post("/upload", upload.array("images"), async (req, res) => {
   try {
     const { category } = req.body;
@@ -33,8 +41,6 @@ app.post("/upload", upload.array("images"), async (req, res) => {
 
     const uploadPromises = req.files.map((file) => {
       const key = `${category}/${Date.now()}-${file.originalname}`;
-
-      console.log("Uploading:", key);
 
       return s3
         .upload({
@@ -63,16 +69,23 @@ app.post("/upload", upload.array("images"), async (req, res) => {
   }
 });
 
+// =======================================
+// 🔗 GENERATE SIGNED URL (optional)
+// =======================================
 app.get("/generate-upload-url", async (req, res) => {
   try {
     const { category, fileName, fileType } = req.query;
+
+    if (!category || !fileName || !fileType) {
+      return res.status(400).json({ error: "Missing parameters" });
+    }
 
     const key = `${category}/${Date.now()}-${fileName}`;
 
     const params = {
       Bucket: "vetinwild",
       Key: key,
-      Expires: 60, // URL valid for 60 seconds
+      Expires: 60,
       ContentType: fileType,
     };
 
@@ -88,6 +101,9 @@ app.get("/generate-upload-url", async (req, res) => {
   }
 });
 
+// =======================================
+// 📂 GET CATEGORIES
+// =======================================
 app.get("/categories", async (req, res) => {
   try {
     const data = await s3.listObjectsV2({ Bucket: "vetinwild" }).promise();
@@ -108,6 +124,9 @@ app.get("/categories", async (req, res) => {
   }
 });
 
+// =======================================
+// 🏁 SERVER START
+// =======================================
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
