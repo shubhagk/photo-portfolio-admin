@@ -12,34 +12,54 @@ const upload = multer({ storage: multer.memoryStorage() });
 AWS.config.update({
   accessKeyId: process.env.AWS_ACCESS_KEY,
   secretAccessKey: process.env.AWS_SECRET_KEY,
-  region: "ap-south-1",
+  region: "eu-north-1",
 });
 
 const s3 = new AWS.S3();
 
-app.post("/upload", upload.single("image"), async (req, res) => {
+app.post("/upload", upload.array("images"), async (req, res) => {
   try {
-    const file = req.file;
-    const category = req.body.category;
+    const { category } = req.body;
 
-    const key = `${category}/${Date.now()}-${file.originalname}`;
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: "No files uploaded" });
+    }
 
-    const params = {
-      Bucket: "vetinwild",
-      Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-    };
+    if (!category) {
+      return res.status(400).json({ error: "Category required" });
+    }
 
-    const uploadResult = await s3.upload(params).promise();
+    console.log("Uploading to S3...");
+
+    const uploadPromises = req.files.map((file) => {
+      const key = `${category}/${Date.now()}-${file.originalname}`;
+
+      console.log("Uploading:", key);
+
+      return s3
+        .upload({
+          Bucket: "vetinwild",
+          Key: key,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        })
+        .promise();
+    });
+
+    const result = await Promise.all(uploadPromises);
+
+    console.log("S3 Upload Success:", result);
 
     res.json({
-      message: "Upload success",
-      url: uploadResult.Location,
+      message: "Upload successful",
+      files: result,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Upload failed" });
+    console.error("S3 ERROR:", err);
+
+    res.status(500).json({
+      error: err.message,
+    });
   }
 });
 
