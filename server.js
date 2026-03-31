@@ -125,6 +125,25 @@ app.get("/categories", async (req, res) => {
 });
 
 // =======================================
+// 🖼️ GET ALL IMAGES
+// =======================================
+app.get("/images", async (req, res) => {
+  try {
+    const data = await s3.listObjectsV2({ Bucket: "vetinwild" }).promise();
+
+    const images = data.Contents.map((item) => ({
+      url: `https://vetinwild.s3.eu-north-1.amazonaws.com/${item.Key}`,
+      category: item.Key.split("/")[0],
+      key: item.Key,
+    }));
+
+    res.json(images);
+  } catch (err) {
+    console.error("FETCH IMAGES ERROR:", err);
+    res.status(500).json({ error: "Failed to fetch images" });
+  }
+});
+// =======================================
 // 🏁 SERVER START
 // =======================================
 const PORT = process.env.PORT || 5000;
