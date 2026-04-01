@@ -36,7 +36,7 @@ app.post("/upload", upload.array("images"), async (req, res) => {
     if (!category) {
       return res.status(400).json({ error: "Category required" });
     }
-
+    console.log("Category received:", req.query.category);
     console.log("Uploading to S3...");
 
     const uploadPromises = req.files.map((file) => {
@@ -129,13 +129,23 @@ app.get("/categories", async (req, res) => {
 // =======================================
 app.get("/images", async (req, res) => {
   try {
-    const data = await s3.listObjectsV2({ Bucket: "vetinwild" }).promise();
+    const { category } = req.query;
 
-    const images = data.Contents.map((item) => ({
-      url: `https://vetinwild.s3.eu-north-1.amazonaws.com/${item.Key}`,
-      category: item.Key.split("/")[0],
-      key: item.Key,
-    }));
+    console.log("Category:", category); // 🔍 debug
+
+    const params = {
+      Bucket: "vetinwild",
+      Prefix: category ? `${category}/` : "", // ✅ THIS is the fix
+    };
+
+    const data = await s3.listObjectsV2(params).promise();
+
+    const images = data.Contents.filter((item) => !item.Key.endsWith("/")) // remove folder
+      .map((item) => ({
+        url: `https://vetinwild.s3.eu-north-1.amazonaws.com/${item.Key}`,
+        category: item.Key.split("/")[0],
+        key: item.Key,
+      }));
 
     res.json(images);
   } catch (err) {
